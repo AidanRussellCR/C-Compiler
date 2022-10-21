@@ -1,0 +1,85 @@
+#include "defs.h"
+#include "data.h"
+#include "decl.h"
+
+//Parsing of expressions
+
+//Parse a primary factor and return an AST node representing it
+static struct ASTnode *primary(void){
+    struct ASTnode *n;
+
+    //For an INTLIT token, make a leaf AST node and scan in the next token; otherwise, a syntax error for other token types
+    switch(Token.token){
+        case T_INTLIT:
+            n = mkastleaf(A_INTLIT, Token.intvalue);
+            scan(&Token);
+            return(n);
+        default:
+            fprintf(stderr, "syntax error on line %d, token %d\n", Line, Token.token);
+            exit(1);
+    }
+}
+
+//Convert a binary operator token into an AST operation
+int arithop(int tokentype){
+    switch (tokentype){
+        case T_PLUS:
+            return(A_ADD);
+        case T_MINUS:
+            return(A_SUBTRACT);
+        case T_STAR:
+            return(A_MULTIPLY);
+        case T_SLASH:
+            return(A_DIVIDE);
+        default:
+            fprintf(stderr, "syntax error on line %d, token %d\n", Line, tokentype);
+            exit(1);
+    }
+}
+
+//Operator precedence for each token
+static int OpPrec[] = {0, 10, 10, 20, 20, 0};
+
+//Check that we have a binary operator and return it's precedence
+static int op_precedence(int tokentype){
+    int prec = OpPrec[tokentype];
+    if(prec == 0){
+        fprintf(stderr, "syntax error on line %d, token %d\n", Line, tokentype);
+        exit(1);
+    }
+    return(prec);
+}
+
+//Return an AST tree whose root is a binary operator; parameter ptp is the previous token's precedence
+struct ASTnode *binexpr(int ptp){
+    struct ASTnode *left, *right;
+    int tokentype;
+
+    //Get the integer literal on the left, and fetch next token
+    left = primary();
+
+    //If no tokens left, return just the left node
+    tokentype = Token.token;
+    if(Token.token == T_EOF)
+        return(left);
+
+    //While the precedence of this token is more than that of the previous token precedence
+    while(op_precedence(tokentype) > ptp){
+        //Fetch in the next integer literal
+        scan(&Token);
+
+        //Recursively call binexpr() with the precedence of the token to build a sub-tree
+        right = binexpr(OpPrec[tokentype]);
+
+        //Join that sub-tree; convert the token into an AST operation at the same time
+        left = mkastnode(arithop(tokentype), left, right, 0);
+
+        //Update the details of the current token; if none left, return the left node
+        tokentype = Token.token;
+        if(tokentype == T_EOF)
+            return(left);
+    }
+
+    //Return the tree we have when the precedence is the same or lower
+    return(left);
+}
