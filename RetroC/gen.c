@@ -11,7 +11,7 @@ static int label(void){
 }
 
 //Generate the code for an IF statement and an optional ELSE clause
-static int genIFAST(struct ASTnode *n){
+static int genIF(struct ASTnode *n){
     int Lfalse, Lend;
 
     //Generate two labels: one for the false compound statement and one for
@@ -45,6 +45,29 @@ static int genIFAST(struct ASTnode *n){
     return(NOREG);
 }
 
+//Generate the code for a WHILE statement and an optional ELSE clause
+static int genWHILE(struct ASTnode *n){
+    int Lstart, Lend;
+
+    //Generate the start and end labels and output the start label
+    Lstart = label();
+    Lend = label();
+    cglabel(Lstart);
+
+    //Generate the condition code followed by a jump to the end label; cheats by sending the Lfalse label as a register
+    genAST(n->left, Lend, n->op);
+    genfreeregs();
+
+    //Generate the compound statement for the body
+    genAST(n->right, NOREG, n->op);
+    genfreeregs();
+
+    //Finally output the jump back to the condition, and the end label
+    cgjump(Lstart);
+    cglabel(Lend);
+    return(NOREG);
+}
+
 //Given an AST, generate assembly code recursively
 int genAST(struct ASTnode *n, int reg, int parentASTop){
     int leftreg, rightreg;
@@ -52,7 +75,9 @@ int genAST(struct ASTnode *n, int reg, int parentASTop){
     //We now have specific AST node handling at the top
     switch(n->op){
         case A_IF:
-            return(genIFAST(n));
+            return(genIF(n));
+        case A_WHILE:
+            return(genWHILE(n));
         case A_GLUE:
             //Do each child statement, and free the registers after each child
             genAST(n->left, NOREG, n->op);
@@ -87,7 +112,7 @@ int genAST(struct ASTnode *n, int reg, int parentASTop){
         case A_GE:
             //If the parent AST node is an A_IF, generate a compare followed by a jump.
             //Otherwise, compare registers and set one to 1 or 0 based on the comparison
-            if(parentASTop == A_IF)
+            if(parentASTop == A_IF || parentASTop == A_WHILE)
                 return(cgcompare_and_jump(n->op, leftreg, rightreg, reg));
             else
                 return(cgcompare_and_set(n->op, leftreg, rightreg));

@@ -19,18 +19,6 @@ statement: print_statement
 
 print_statement: 'print' expression ';'   ;
 
-declaration: 'int' identifier ';'   ;
-
-assignment_statement: identifier '=' expression ';'   ;
-
-if_statement: if_head
-    |         if_head 'else' compound_statement
-    ;
-
-if_head: 'if' '(' true_false_expression ')' compound_statement   ;
-
-identifier: T_IDENT ;
-
 */
 
 static struct ASTnode *print_statement(void){
@@ -50,6 +38,8 @@ static struct ASTnode *print_statement(void){
     semi();
     return(tree);
 }
+
+//assignment_statement: identifier '=' expression ';'   ;
 
 static struct ASTnode *assignment_statement(void){
     struct ASTnode *left, *right, *tree;
@@ -78,6 +68,16 @@ static struct ASTnode *assignment_statement(void){
     return(tree);
 }
 
+/*
+
+if_statement: if_head
+    |         if_head 'else' compound_statement
+    ;
+
+if_head: 'if' '(' true_false_expression ')' compound_statement   ;
+
+*/
+
 //Parse an IF statement including any optional ELSE clause and return its AST
 struct ASTnode *if_statement(void){
     struct ASTnode *condAST, *trueAST, *falseAST = NULL;
@@ -105,6 +105,29 @@ struct ASTnode *if_statement(void){
     return(mkastnode(A_IF, condAST, trueAST, falseAST, 0));
 }
 
+//while_statement: 'while' '(' true_false_expression ')' compound_statement   ;
+
+//Parse a WHILE statement and return its AST
+struct ASTnode *while_statement(void){
+    struct ASTnode *condAST, *bodyAST;
+
+    //Ensure we have 'while' '('
+    match(T_WHILE, "while");
+    lparen();
+
+    //Parse the following expression and the ')' following; ensure the tree's operation is a comparison
+    condAST = binexpr(0);
+    if(condAST->op < A_EQ || condAST->op > A_GE)
+        fatal("Bad comparison operator");
+    rparen();
+
+    //Get the AST for the compound statement
+    bodyAST = compound_statement();
+
+    //Build and return the AST for this statement
+    return(mkastnode(A_WHILE, condAST, NULL, bodyAST, 0));
+}
+
 //Parse a compound statement and return its AST
 struct ASTnode *compound_statement(void){
     struct ASTnode *left = NULL;
@@ -127,6 +150,9 @@ struct ASTnode *compound_statement(void){
                 break;
             case T_IF:
                 tree = if_statement();
+                break;
+            case T_WHILE:
+                tree = while_statement();
                 break;
             case T_RBRACE:
                 //When we hit a right curly bracket skip past it and return the AST
